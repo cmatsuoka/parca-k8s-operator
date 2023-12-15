@@ -1,0 +1,62 @@
+summary: Test using microk8s 1.28-strict (stable)
+
+systems:
+  - ubuntu-22.04
+  - ubuntu-20.04
+
+environment:
+  PROVIDER: microk8s
+  JUJU_CHANNEL/alt1,alt2: 3.3/stable
+  JUJU_CHANNEL/alt3: 3.1/stable
+  CHARMCRAFT_CHANNEL/alt1,alt3: latest/stable
+  CHARMCRAFT_CHANNEL/alt2: latest/candidate
+  MICROK8S_CHANNEL: 1.28-strict/stable
+
+# This creates 3 test variants:
+# - alt1: with juju 3.3 and charmcraft stable
+# - alt2: with juju 3.3 and charmcraft candidate
+# - alt3: with juju 3.1 and charmcraft stable
+
+prepare: |
+  . "$CRAFT_TEST_PATH"/funcs.sh
+
+  apt update -y
+  apt install -y python3-pip
+  pip3 install tox
+
+  install_lxd
+  install_juju
+  install_tools
+  install_microk8s
+
+  bootstrap_juju
+
+  juju add-model testing
+
+  snap install kubectl --classic
+  mkdir -p "$HOME"/.kube
+  microk8s config > ${HOME}/.kube/config
+
+restore: |
+  . "$CRAFT_TEST_PATH"/funcs.sh
+
+  snap remove kubectl --purge
+  rm -Rf "$HOME"/.kube
+
+  charmcraft clean -p "$PROJECT_PATH"
+
+  restore_juju
+
+  snap stop microk8s
+  snap stop juju
+  snap remove --purge microk8s
+  snap remove --purge juju
+  snap remove --purge juju-crashdump
+  snap remove --purge juju-bundle
+  snap remove --purge charmcraft
+  snap remove --purge charm
+
+execute: |
+  tox -e integration
+
+kill-timeout: 30m
